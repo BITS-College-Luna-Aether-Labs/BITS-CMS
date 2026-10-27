@@ -10,6 +10,10 @@ const pool = new Pool({
   max: 10,
 });
 
+pool.on("error", (err) => {
+  console.error("Unexpected error on idle database client", err);
+});
+
 export type QueryExecutor = {
   query<T extends QueryResultRow = QueryResultRow>(
     text: string,

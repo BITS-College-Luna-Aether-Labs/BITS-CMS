@@ -1,16 +1,12 @@
 BEGIN;
 
-DROP TABLE IF EXISTS readmore_media CASCADE;
-DROP TABLE IF EXISTS readmore CASCADE;
-DROP TABLE IF EXISTS refresh_token CASCADE;
-DROP TABLE IF EXISTS post CASCADE;
-DROP TABLE IF EXISTS media CASCADE;
-DROP TABLE IF EXISTS admin CASCADE;
-DROP TYPE IF EXISTS media_type_enum CASCADE;
+DO $$ BEGIN
+    CREATE TYPE media_type_enum AS ENUM ('IMAGE', 'VIDEO', 'YOUTUBE');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE media_type_enum AS ENUM ('IMAGE', 'VIDEO', 'YOUTUBE');
-
-CREATE TABLE admin (
+CREATE TABLE IF NOT EXISTS admin (
     adminid SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     passwordhashed TEXT NOT NULL,
@@ -20,7 +16,7 @@ CREATE TABLE admin (
     updatedat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE media (
+CREATE TABLE IF NOT EXISTS media (
     mediaid SERIAL PRIMARY KEY,
     mimetype VARCHAR(100) NOT NULL,
     filedata BYTEA NOT NULL,
@@ -28,7 +24,7 @@ CREATE TABLE media (
     createdat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE post (
+CREATE TABLE IF NOT EXISTS post (
     postid SERIAL PRIMARY KEY,
     adminid INT NOT NULL REFERENCES admin(adminid),
     title VARCHAR(255) NOT NULL,
@@ -49,7 +45,7 @@ CREATE TABLE post (
     )
 );
 
-CREATE TABLE readmore (
+CREATE TABLE IF NOT EXISTS readmore (
     readmoreid SERIAL PRIMARY KEY,
     postid INT NOT NULL UNIQUE REFERENCES post(postid) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -58,7 +54,7 @@ CREATE TABLE readmore (
     updatedat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE readmore_media (
+CREATE TABLE IF NOT EXISTS readmore_media (
     readmoremediaid SERIAL PRIMARY KEY,
     readmoreid INT NOT NULL REFERENCES readmore(readmoreid) ON DELETE CASCADE,
     position SMALLINT NOT NULL CHECK (position BETWEEN 1 AND 6),
@@ -75,7 +71,7 @@ CREATE TABLE readmore_media (
     )
 );
 
-CREATE TABLE refresh_token (
+CREATE TABLE IF NOT EXISTS refresh_token (
     refreshtokenid SERIAL PRIMARY KEY,
     adminid INT NOT NULL REFERENCES admin(adminid) ON DELETE CASCADE,
     tokenhash VARCHAR(128) NOT NULL UNIQUE,
@@ -86,13 +82,13 @@ CREATE TABLE refresh_token (
     createdat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_post_slug ON post(slug);
-CREATE INDEX idx_post_adminid ON post(adminid);
-CREATE INDEX idx_post_isdeleted ON post(isdeleted);
-CREATE INDEX idx_post_isdeleted_publisheddate ON post(isdeleted, publisheddate DESC);
-CREATE INDEX idx_readmore_postid ON readmore(postid);
-CREATE INDEX idx_readmore_media_readmoreid ON readmore_media(readmoreid);
-CREATE INDEX idx_refresh_token_adminid ON refresh_token(adminid);
-CREATE INDEX idx_refresh_token_hash ON refresh_token(tokenhash);
+CREATE INDEX IF NOT EXISTS idx_post_slug ON post(slug);
+CREATE INDEX IF NOT EXISTS idx_post_adminid ON post(adminid);
+CREATE INDEX IF NOT EXISTS idx_post_isdeleted ON post(isdeleted);
+CREATE INDEX IF NOT EXISTS idx_post_isdeleted_publisheddate ON post(isdeleted, publisheddate DESC);
+CREATE INDEX IF NOT EXISTS idx_readmore_postid ON readmore(postid);
+CREATE INDEX IF NOT EXISTS idx_readmore_media_readmoreid ON readmore_media(readmoreid);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_adminid ON refresh_token(adminid);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_token(tokenhash);
 
 COMMIT;

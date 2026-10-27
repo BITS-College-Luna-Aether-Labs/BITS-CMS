@@ -26,7 +26,7 @@ export default function App() {
     <Suspense fallback={<StudioFallback />}>
       <Routes>
         <Route element={<PublicLayout />}>
-          <Route index element={<Navigate to="/news" replace />} />
+          <Route index element={<Navigate to="/studio" replace />} />
           <Route path="news" element={<NewsList />} />
           <Route path="news/:slug" element={<NewsDetail />} />
           <Route path="*" element={<NotFound />} />

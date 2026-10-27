@@ -1,4 +1,3 @@
-import bcrypt from "bcrypt";
 import { Router } from "express";
 import {
   createPost,

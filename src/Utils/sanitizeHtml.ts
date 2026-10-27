@@ -33,7 +33,6 @@ const ALLOWED_ATTR = [
   "src",
   "alt",
   "title",
-  "style",
 ];
 
 export function sanitizeHtml(html: string): string {

@@ -51,7 +51,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Link
-            to="/news"
+            to="/studio"
             className="text-3xl font-extrabold tracking-tight text-brand-charcoal"
           >
             Bi<span className="text-brand-green">T</span>S

@@ -106,10 +106,18 @@ router.get(
     }
 
     const total = media.fileData.length;
+    const etag = `W/"media-${mediaId}-${total}"`;
+
     res.set("Content-Type", media.mimeType);
     res.set("X-Content-Type-Options", "nosniff");
     res.set("Cache-Control", "public, max-age=86400");
     res.set("Accept-Ranges", "bytes");
+    res.set("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) {
+      res.status(304).end();
+      return;
+    }
 
     const rangeHeader = req.headers.range;
     if (!rangeHeader) {
@@ -118,7 +126,7 @@ router.get(
       return;
     }
 
-    // Parse "bytes=START-END" (END optional)
+    // Parse "bytes=START-END" (either START or END optional)
     const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
     if (!match) {
       res.status(416).set("Content-Range", `bytes */${total}`).end();
@@ -127,23 +135,31 @@ router.get(
 
     const startStr = match[1];
     const endStr = match[2];
-    let start = startStr === "" ? 0 : Number(startStr);
-    let end = endStr === "" ? total - 1 : Number(endStr);
+    let start: number;
+    let end: number;
+
+    if (startStr === "" && endStr !== "") {
+      // Suffix range: bytes=-500 (last 500 bytes)
+      const suffixLength = Number(endStr);
+      start = Math.max(0, total - suffixLength);
+      end = total - 1;
+    } else {
+      start = startStr === "" ? 0 : Number(startStr);
+      end = endStr === "" ? total - 1 : Number(endStr);
+    }
 
     if (
       !Number.isFinite(start) ||
       !Number.isFinite(end) ||
       start > end ||
       start < 0 ||
-      end >= total
+      start >= total
     ) {
-      end = Math.min(end, total - 1);
-      if (start > end || start < 0) {
-        res.status(416).set("Content-Range", `bytes */${total}`).end();
-        return;
-      }
+      res.status(416).set("Content-Range", `bytes */${total}`).end();
+      return;
     }
 
+    end = Math.min(end, total - 1);
     const chunk = media.fileData.subarray(start, end + 1);
     res.status(206);
     res.set("Content-Range", `bytes ${start}-${end}/${total}`);

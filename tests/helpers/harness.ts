@@ -96,10 +96,18 @@ export class CmsTestHarness {
   }
 
   async resetDatabase(): Promise<void> {
-    const sql = await readFile(migrationsPath, "utf8");
     const client = await this.createClient(testDatabaseName);
 
     try {
+      await client.query(`
+        DROP TABLE IF EXISTS readmore_media CASCADE;
+        DROP TABLE IF EXISTS readmore CASCADE;
+        DROP TABLE IF EXISTS refresh_token CASCADE;
+        DROP TABLE IF EXISTS post CASCADE;
+        DROP TABLE IF EXISTS media CASCADE;
+        DROP TABLE IF EXISTS admin CASCADE;
+      `);
+      const sql = await readFile(migrationsPath, "utf8");
       await client.query(sql);
     } finally {
       await client.end();

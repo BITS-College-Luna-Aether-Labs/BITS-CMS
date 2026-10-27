@@ -192,12 +192,15 @@ router.post(
 
 router.post(
   "/logout",
-  authenticate,
   asyncHandler(async (req, res) => {
     const refreshToken = readCookie(req.headers.cookie, env.refreshCookieName);
 
     if (refreshToken) {
-      await revokeRefreshToken(hashToken(refreshToken));
+      try {
+        await revokeRefreshToken(hashToken(refreshToken));
+      } catch {
+        // Silently continue if token is already revoked or malformed
+      }
     }
 
     clearRefreshCookie(res);
