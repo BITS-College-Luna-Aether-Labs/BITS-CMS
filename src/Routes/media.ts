@@ -14,6 +14,7 @@ import { Router } from "express";
 import multer from "multer";
 import { authenticate } from "../Middleware/auth.js";
 import { insertMedia, getMediaById } from "../DB/media.js";
+import { createAuditLog } from "../DB/audit.js";
 import { asyncHandler } from "../Utils/asyncHandler.js";
 import { badRequest, notFound } from "../Utils/errors.js";
 import { detectMimeType } from "../Utils/fileSignature.js";
@@ -78,6 +79,18 @@ router.post(
       fileData: req.file.buffer,
       uploadedBy: req.user?.sub ?? null,
     });
+
+    if (req.user) {
+      void createAuditLog({
+        adminId: req.user.sub,
+        adminEmail: req.user.email,
+        action: "MEDIA_UPLOAD",
+        entityType: "MEDIA",
+        entityId: String(uploaded.mediaId),
+        details: { mimeType: uploaded.mimeType, sizeBytes: req.file.buffer.length },
+        ipAddress: req.ip,
+      }).catch(console.error);
+    }
 
     res.status(201).json({
       data: {

@@ -100,6 +100,7 @@ export class CmsTestHarness {
 
     try {
       await client.query(`
+        DROP TABLE IF EXISTS audit_log CASCADE;
         DROP TABLE IF EXISTS readmore_media CASCADE;
         DROP TABLE IF EXISTS readmore CASCADE;
         DROP TABLE IF EXISTS refresh_token CASCADE;

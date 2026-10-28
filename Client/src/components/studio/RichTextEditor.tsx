@@ -8,11 +8,14 @@ import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { FontFamily } from "@tiptap/extension-font-family";
+import { Extension } from "@tiptap/core";
 import clsx from "clsx";
 import { useUploadMedia } from "@/api/media";
 import { ApiError } from "@/lib/api";
 
-const TextStyleWithFontSize = TextStyle.extend({
+// ─── Custom TipTap Extensions ───────────────────────────────────────────────
+
+const TextStyleWithStyling = TextStyle.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -25,14 +28,48 @@ const TextStyleWithFontSize = TextStyle.extend({
           return { style: `font-size: ${attributes.fontSize}` };
         },
       },
+      color: {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.style.color || null,
+        renderHTML: (attributes: { color?: string | null }) => {
+          if (!attributes.color) return {};
+          return { style: `color: ${attributes.color}` };
+        },
+      },
     };
   },
 });
 
+const CustomTextAlign = Extension.create({
+  name: "customTextAlign",
+  addGlobalAttributes() {
+    return [
+      {
+        types: ["heading", "paragraph"],
+        attributes: {
+          textAlign: {
+            default: "left",
+            parseHTML: (element: HTMLElement) =>
+              element.style.textAlign || "left",
+            renderHTML: (attributes: { textAlign?: string }) => {
+              if (!attributes.textAlign || attributes.textAlign === "left")
+                return {};
+              return { style: `text-align: ${attributes.textAlign}` };
+            },
+          },
+        },
+      },
+    ];
+  },
+});
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
 const FONT_FAMILIES: Array<{ label: string; value: string | null }> = [
   { label: "Default", value: null },
   { label: "Arial", value: "Arial, sans-serif" },
-  { label: "Helvetica", value: 'Helvetica, Arial, sans-serif' },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
   { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
   { label: "Tahoma", value: "Tahoma, Geneva, sans-serif" },
   { label: "Trebuchet MS", value: '"Trebuchet MS", sans-serif' },
@@ -40,11 +77,10 @@ const FONT_FAMILIES: Array<{ label: string; value: string | null }> = [
   { label: "Georgia", value: "Georgia, serif" },
   { label: "Garamond", value: 'Garamond, "Apple Garamond", serif' },
   { label: "Palatino", value: '"Palatino Linotype", "Book Antiqua", Palatino, serif' },
-  { label: "Cambria", value: 'Cambria, Georgia, serif' },
+  { label: "Cambria", value: "Cambria, Georgia, serif" },
   { label: "Courier New", value: '"Courier New", Courier, monospace' },
   { label: "Consolas", value: 'Consolas, "Lucida Console", monospace' },
   { label: "Monaco", value: 'Monaco, "Lucida Console", monospace' },
-  { label: "Comic Sans MS", value: '"Comic Sans MS", "Comic Sans", cursive' },
 ];
 
 const FONT_SIZES: Array<{ label: string; value: string | null }> = [
@@ -58,6 +94,29 @@ const FONT_SIZES: Array<{ label: string; value: string | null }> = [
   { label: "36", value: "36px" },
   { label: "48", value: "48px" },
 ];
+
+const TEXT_COLORS = [
+  { label: "Default Charcoal", value: null, hex: "#1f2937" },
+  { label: "BITS Green", value: "#008060", hex: "#008060" },
+  { label: "Forest Green", value: "#15803d", hex: "#15803d" },
+  { label: "Royal Blue", value: "#2563eb", hex: "#2563eb" },
+  { label: "Sky Blue", value: "#0284c7", hex: "#0284c7" },
+  { label: "Red", value: "#dc2626", hex: "#dc2626" },
+  { label: "Amber / Orange", value: "#ea580c", hex: "#ea580c" },
+  { label: "Purple", value: "#7c3aed", hex: "#7c3aed" },
+  { label: "Muted Gray", value: "#64748b", hex: "#64748b" },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: "None", value: null, hex: "transparent" },
+  { label: "Yellow", value: "#fef08a", hex: "#fef08a" },
+  { label: "Green", value: "#bbf7d0", hex: "#bbf7d0" },
+  { label: "Blue", value: "#bfdbfe", hex: "#bfdbfe" },
+  { label: "Pink", value: "#fbcfe8", hex: "#fbcfe8" },
+  { label: "Orange", value: "#fed7aa", hex: "#fed7aa" },
+];
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 
 interface Props {
   value: string;
@@ -79,14 +138,13 @@ export default function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [2, 3] },
-        code: false,
-        codeBlock: false,
+        heading: { levels: [1, 2, 3, 4] },
       }),
       Underline,
-      Highlight,
-      TextStyleWithFontSize,
+      Highlight.configure({ multicolor: true }),
+      TextStyleWithStyling,
       FontFamily,
+      CustomTextAlign,
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -105,29 +163,19 @@ export default function RichTextEditor({
     },
   });
 
-  // Force the toolbar to re-render when the cursor moves or marks change.
+  // Force toolbar update on cursor/selection changes
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   useEffect(() => {
     if (!editor) return;
     editor.on("selectionUpdate", forceUpdate);
+    editor.on("transaction", forceUpdate);
     return () => {
       editor.off("selectionUpdate", forceUpdate);
+      editor.off("transaction", forceUpdate);
     };
   }, [editor]);
 
-  // Any pointerdown inside the editor surface broadcasts a "close all
-  // dropdowns" event. Toolbar dropdowns listen for it and close. This is
-  // independent of the document-level outside-click listener — a hard signal.
-  useEffect(() => {
-    if (!editor) return;
-    const dom = editor.view.dom;
-    function broadcast() {
-      document.dispatchEvent(new CustomEvent("bits-close-dropdowns"));
-    }
-    dom.addEventListener("pointerdown", broadcast);
-    return () => dom.removeEventListener("pointerdown", broadcast);
-  }, [editor]);
-
+  // Synchronize incoming value changes
   useEffect(() => {
     if (!editor) return;
     if (value !== editor.getHTML()) {
@@ -201,6 +249,8 @@ export default function RichTextEditor({
   );
 }
 
+// ─── Toolbar ────────────────────────────────────────────────────────────────
+
 interface ToolbarProps {
   editor: Editor;
   onImage: () => void;
@@ -209,173 +259,353 @@ interface ToolbarProps {
 }
 
 function Toolbar({ editor, onImage, onLink, uploading }: ToolbarProps) {
+  // Coordinated dropdown state: at most ONE dropdown open at any time
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // Close any open dropdown whenever user clicks into or focuses the editor,
+  // or clicks outside the toolbar.
+  useEffect(() => {
+    function closeDropdowns() {
+      setActiveMenu(null);
+    }
+
+    editor.on("focus", closeDropdowns);
+    editor.on("selectionUpdate", closeDropdowns);
+
+    function onWindowMouseDown(e: MouseEvent | TouchEvent) {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setActiveMenu(null);
+      }
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setActiveMenu(null);
+    }
+
+    window.addEventListener("mousedown", onWindowMouseDown, true);
+    window.addEventListener("touchstart", onWindowMouseDown, true);
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      editor.off("focus", closeDropdowns);
+      editor.off("selectionUpdate", closeDropdowns);
+      window.removeEventListener("mousedown", onWindowMouseDown, true);
+      window.removeEventListener("touchstart", onWindowMouseDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editor]);
+
+  function toggleMenu(name: string) {
+    setActiveMenu((curr) => (curr === name ? null : name));
+  }
+
+  // Current alignment
+  const currentAlign =
+    editor.getAttributes("paragraph").textAlign ||
+    editor.getAttributes("heading").textAlign ||
+    "left";
+
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-brand-bg p-1">
-      <BlockDropdown editor={editor} />
-      <FontFamilyDropdown editor={editor} />
-      <FontSizeDropdown editor={editor} />
+    <div
+      ref={toolbarRef}
+      className="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-brand-bg px-2 py-1.5 select-none"
+    >
+      {/* 1. Block Style Dropdown (Paragraph, H1, H2, H3, H4) */}
+      <BlockDropdown
+        editor={editor}
+        isOpen={activeMenu === "block"}
+        onToggle={() => toggleMenu("block")}
+        onClose={() => setActiveMenu(null)}
+      />
+
+      {/* 2. Font Family Dropdown */}
+      <FontFamilyDropdown
+        editor={editor}
+        isOpen={activeMenu === "font"}
+        onToggle={() => toggleMenu("font")}
+        onClose={() => setActiveMenu(null)}
+      />
+
+      {/* 3. Font Size Dropdown */}
+      <FontSizeDropdown
+        editor={editor}
+        isOpen={activeMenu === "size"}
+        onToggle={() => toggleMenu("size")}
+        onClose={() => setActiveMenu(null)}
+      />
 
       <Sep />
 
+      {/* 4. Text Color Picker */}
+      <TextColorDropdown
+        editor={editor}
+        isOpen={activeMenu === "color"}
+        onToggle={() => toggleMenu("color")}
+        onClose={() => setActiveMenu(null)}
+      />
+
+      {/* 5. Highlight Picker */}
+      <HighlightDropdown
+        editor={editor}
+        isOpen={activeMenu === "highlight"}
+        onToggle={() => toggleMenu("highlight")}
+        onClose={() => setActiveMenu(null)}
+      />
+
+      <Sep />
+
+      {/* 6. Basic Inline Styling */}
       <Btn
         active={editor.isActive("bold")}
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        label="Bold"
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleBold().run();
+        }}
+        label="Bold (Cmd+B)"
       >
         <span className="text-sm font-bold">B</span>
       </Btn>
+
       <Btn
         active={editor.isActive("italic")}
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        label="Italic"
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleItalic().run();
+        }}
+        label="Italic (Cmd+I)"
       >
         <span className="text-sm font-semibold italic">I</span>
       </Btn>
+
       <Btn
         active={editor.isActive("underline")}
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
-        label="Underline"
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleUnderline().run();
+        }}
+        label="Underline (Cmd+U)"
       >
         <span className="text-sm font-semibold underline">U</span>
       </Btn>
+
       <Btn
-        active={editor.isActive("highlight")}
-        onClick={() => editor.chain().focus().toggleHighlight().run()}
-        label="Highlight"
+        active={editor.isActive("strike")}
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleStrike().run();
+        }}
+        label="Strikethrough"
       >
-        <span className="rounded bg-brand-green-blob px-1 text-[11px] font-semibold text-brand-charcoal">
-          H
-        </span>
+        <span className="text-sm line-through">S</span>
+      </Btn>
+
+      <Btn
+        active={editor.isActive("code")}
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleCode().run();
+        }}
+        label="Inline code"
+      >
+        <span className="font-mono text-xs">&lt;&gt;</span>
       </Btn>
 
       <Sep />
 
+      {/* 7. Text Alignment Dropdown / Buttons */}
+      <AlignDropdown
+        currentAlign={currentAlign}
+        isOpen={activeMenu === "align"}
+        onToggle={() => toggleMenu("align")}
+        onSelect={(align) => {
+          editor
+            .chain()
+            .focus()
+            .updateAttributes("paragraph", { textAlign: align })
+            .updateAttributes("heading", { textAlign: align })
+            .run();
+          setActiveMenu(null);
+        }}
+      />
+
+      <Sep />
+
+      {/* 8. Lists & Blockquotes */}
       <Btn
         active={editor.isActive("bulletList")}
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleBulletList().run();
+        }}
         label="Bullet list"
       >
         <ListIcon variant="bullet" />
       </Btn>
+
       <Btn
         active={editor.isActive("orderedList")}
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleOrderedList().run();
+        }}
         label="Numbered list"
       >
         <ListIcon variant="ordered" />
       </Btn>
+
       <Btn
         active={editor.isActive("blockquote")}
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        label="Callout"
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().toggleBlockquote().run();
+        }}
+        label="Callout / Quote"
       >
         <CalloutIcon />
       </Btn>
+
       <Btn
-        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-        label="Horizontal rule"
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().setHorizontalRule().run();
+        }}
+        label="Horizontal divider"
       >
         <HrIcon />
       </Btn>
 
       <Sep />
 
-      <Btn active={editor.isActive("link")} onClick={onLink} label="Link">
+      {/* 9. Media & Links */}
+      <Btn
+        active={editor.isActive("link")}
+        onClick={() => {
+          setActiveMenu(null);
+          onLink();
+        }}
+        label="Insert link"
+      >
         <LinkIcon />
       </Btn>
-      <Btn onClick={onImage} disabled={uploading} label="Insert image">
+
+      <Btn
+        onClick={() => {
+          setActiveMenu(null);
+          onImage();
+        }}
+        disabled={uploading}
+        label="Insert image from device"
+      >
         <ImageIcon />
-        {uploading && (
-          <span className="ml-1 text-[10px] text-brand-muted">…</span>
-        )}
+        {uploading && <span className="ml-1 text-[10px] text-brand-muted">…</span>}
+      </Btn>
+
+      <Sep />
+
+      {/* 10. Clear Formatting & History */}
+      <Btn
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().clearNodes().unsetAllMarks().run();
+        }}
+        label="Clear formatting"
+      >
+        <EraserIcon />
+      </Btn>
+
+      <Btn
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().undo().run();
+        }}
+        disabled={!editor.can().undo()}
+        label="Undo (Cmd+Z)"
+      >
+        <UndoIcon />
+      </Btn>
+
+      <Btn
+        onClick={() => {
+          setActiveMenu(null);
+          editor.chain().focus().redo().run();
+        }}
+        disabled={!editor.can().redo()}
+        label="Redo (Cmd+Y)"
+      >
+        <RedoIcon />
       </Btn>
     </div>
   );
 }
 
-function useDropdown() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+// ─── Dropdown Components ────────────────────────────────────────────────────
 
-  // Listen for the editor's "close all" broadcast. Always on — covers the
-  // common case of clicking into the editor while a dropdown is open.
-  useEffect(() => {
-    function onCloseAll() {
-      setOpen(false);
-    }
-    document.addEventListener("bits-close-dropdowns", onCloseAll);
-    return () =>
-      document.removeEventListener("bits-close-dropdowns", onCloseAll);
-  }, []);
-
-  // Outside-click + Escape — only registered while open. setTimeout(0)
-  // defers registration until after the click that opened it.
-  useEffect(() => {
-    if (!open) return;
-    function onOutside(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    const id = window.setTimeout(() => {
-      document.addEventListener("pointerdown", onOutside);
-    }, 0);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.clearTimeout(id);
-      document.removeEventListener("pointerdown", onOutside);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  return { open, setOpen, ref };
-}
-
-function BlockDropdown({ editor }: { editor: Editor }) {
-  const { open, setOpen, ref } = useDropdown();
-
+function BlockDropdown({
+  editor,
+  isOpen,
+  onToggle,
+  onClose,
+}: {
+  editor: Editor;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
   let label = "Regular text";
-  if (editor.isActive("heading", { level: 2 })) label = "Heading 2";
+  if (editor.isActive("heading", { level: 1 })) label = "Heading 1";
+  else if (editor.isActive("heading", { level: 2 })) label = "Heading 2";
   else if (editor.isActive("heading", { level: 3 })) label = "Heading 3";
+  else if (editor.isActive("heading", { level: 4 })) label = "Heading 4";
 
-  function pick(action: "p" | "h2" | "h3") {
-    if (action === "p") editor.chain().focus().setParagraph().run();
-    else if (action === "h2")
-      editor.chain().focus().setHeading({ level: 2 }).run();
-    else editor.chain().focus().setHeading({ level: 3 }).run();
-    setOpen(false);
+  function pick(level: 0 | 1 | 2 | 3 | 4) {
+    if (level === 0) {
+      editor.chain().focus().setParagraph().run();
+    } else {
+      editor.chain().focus().setHeading({ level }).run();
+    }
+    onClose();
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <DropdownTrigger
-        open={open}
-        onClick={() => setOpen((o) => !o)}
+        open={isOpen}
+        onClick={onToggle}
         label={label}
         widthClass="w-32"
       />
-      {open && (
+      {isOpen && (
         <DropdownMenu>
           <DropItem
             active={label === "Regular text"}
-            onClick={() => pick("p")}
+            onClick={() => pick(0)}
             sample="Regular text"
             sampleClass="text-sm"
           />
           <DropItem
+            active={label === "Heading 1"}
+            onClick={() => pick(1)}
+            sample="Heading 1"
+            sampleClass="text-xl font-bold"
+          />
+          <DropItem
             active={label === "Heading 2"}
-            onClick={() => pick("h2")}
+            onClick={() => pick(2)}
             sample="Heading 2"
             sampleClass="text-lg font-bold"
           />
           <DropItem
             active={label === "Heading 3"}
-            onClick={() => pick("h3")}
+            onClick={() => pick(3)}
             sample="Heading 3"
             sampleClass="text-base font-semibold"
+          />
+          <DropItem
+            active={label === "Heading 4"}
+            onClick={() => pick(4)}
+            sample="Heading 4"
+            sampleClass="text-sm font-semibold"
           />
         </DropdownMenu>
       )}
@@ -383,12 +613,20 @@ function BlockDropdown({ editor }: { editor: Editor }) {
   );
 }
 
-function FontFamilyDropdown({ editor }: { editor: Editor }) {
-  const { open, setOpen, ref } = useDropdown();
+function FontFamilyDropdown({
+  editor,
+  isOpen,
+  onToggle,
+  onClose,
+}: {
+  editor: Editor;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
   const current =
     (editor.getAttributes("textStyle").fontFamily as string | undefined) ??
     null;
-
   const active =
     FONT_FAMILIES.find((f) => f.value === current) ?? FONT_FAMILIES[0];
 
@@ -398,19 +636,19 @@ function FontFamilyDropdown({ editor }: { editor: Editor }) {
     } else {
       editor.chain().focus().setFontFamily(value).run();
     }
-    setOpen(false);
+    onClose();
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <DropdownTrigger
-        open={open}
-        onClick={() => setOpen((o) => !o)}
+        open={isOpen}
+        onClick={onToggle}
         label={active.label}
-        widthClass="w-32"
+        widthClass="w-28"
       />
-      {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border border-gray-100 bg-white py-1 shadow-lg">
+      {isOpen && (
+        <div className="absolute left-0 top-full z-30 mt-1 max-h-64 w-52 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
           {FONT_FAMILIES.map((f) => (
             <DropItem
               key={f.label}
@@ -427,53 +665,56 @@ function FontFamilyDropdown({ editor }: { editor: Editor }) {
   );
 }
 
-function FontSizeDropdown({ editor }: { editor: Editor }) {
-  const { open, setOpen, ref } = useDropdown();
+function FontSizeDropdown({
+  editor,
+  isOpen,
+  onToggle,
+  onClose,
+}: {
+  editor: Editor;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
   const current =
     (editor.getAttributes("textStyle").fontSize as string | undefined) ?? null;
-
   const active =
     FONT_SIZES.find((s) => s.value === current) ??
     FONT_SIZES.find((s) => s.value === null)!;
 
   function pick(value: string | null) {
     if (value === null) {
-      editor
-        .chain()
-        .focus()
-        .setMark("textStyle", { fontSize: null })
-        .run();
+      editor.chain().focus().setMark("textStyle", { fontSize: null }).run();
     } else {
       editor.chain().focus().setMark("textStyle", { fontSize: value }).run();
     }
-    setOpen(false);
+    onClose();
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <DropdownTrigger
-        open={open}
-        onClick={() => setOpen((o) => !o)}
+        open={isOpen}
+        onClick={onToggle}
         label={active.label}
-        widthClass="w-14"
+        widthClass="w-16"
       />
-      {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-20 overflow-hidden rounded-md border border-gray-100 bg-white py-1 shadow-lg">
+      {isOpen && (
+        <div className="absolute left-0 top-full z-30 mt-1 w-24 overflow-hidden rounded-md border border-gray-200 bg-white py-1 shadow-lg">
           {FONT_SIZES.map((s) => (
             <button
               key={s.label}
               type="button"
-              onMouseDown={(e) => e.preventDefault()}
               onClick={() => pick(s.value)}
               className={clsx(
-                "flex w-full items-center justify-between px-3 py-1 text-left text-sm transition-colors",
+                "flex w-full items-center justify-between px-3 py-1 text-left text-xs transition-colors",
                 s.value === current
-                  ? "bg-brand-green/10 text-brand-green-dark"
+                  ? "bg-brand-green/10 text-brand-green-dark font-semibold"
                   : "text-brand-charcoal hover:bg-gray-50",
               )}
             >
-              <span>{s.label}</span>
-              {s.value === current && <span className="text-xs">✓</span>}
+              <span>{s.label}px</span>
+              {s.value === current && <span>✓</span>}
             </button>
           ))}
         </div>
@@ -481,6 +722,218 @@ function FontSizeDropdown({ editor }: { editor: Editor }) {
     </div>
   );
 }
+
+function TextColorDropdown({
+  editor,
+  isOpen,
+  onToggle,
+  onClose,
+}: {
+  editor: Editor;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const currentColor =
+    (editor.getAttributes("textStyle").color as string | undefined) ?? null;
+
+  function pick(color: string | null) {
+    if (color === null) {
+      editor.chain().focus().setMark("textStyle", { color: null }).run();
+    } else {
+      editor.chain().focus().setMark("textStyle", { color }).run();
+    }
+    onClose();
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        title="Text color"
+        className={clsx(
+          "flex h-8 items-center gap-1 rounded px-2 text-xs font-semibold transition-colors",
+          isOpen ? "bg-gray-200" : "hover:bg-gray-100",
+        )}
+      >
+        <span
+          className="flex h-4 w-4 items-center justify-center rounded text-[11px] font-bold text-white shadow-xs"
+          style={{ backgroundColor: currentColor ?? "#1f2937" }}
+        >
+          A
+        </span>
+        <ChevronDown />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full z-30 mt-1 w-44 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+          <div className="text-[11px] font-semibold text-brand-muted uppercase mb-1.5 px-1">
+            Text Color
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {TEXT_COLORS.map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                onClick={() => pick(c.value)}
+                title={c.label}
+                className={clsx(
+                  "h-6 w-6 rounded-md border border-gray-300 transition-transform hover:scale-110",
+                  currentColor === c.value && "ring-2 ring-brand-green ring-offset-1",
+                )}
+                style={{ backgroundColor: c.hex }}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => pick(null)}
+            className="mt-2 w-full text-center text-[11px] font-medium text-brand-muted hover:text-brand-charcoal py-1 rounded bg-gray-50 hover:bg-gray-100"
+          >
+            Reset color
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HighlightDropdown({
+  editor,
+  isOpen,
+  onToggle,
+  onClose,
+}: {
+  editor: Editor;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const current =
+    (editor.getAttributes("highlight").color as string | undefined) ?? null;
+
+  function pick(color: string | null) {
+    if (color === null) {
+      editor.chain().focus().unsetHighlight().run();
+    } else {
+      editor.chain().focus().setHighlight({ color }).run();
+    }
+    onClose();
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        title="Highlight color"
+        className={clsx(
+          "flex h-8 items-center gap-1 rounded px-2 text-xs font-semibold transition-colors",
+          isOpen ? "bg-gray-200" : "hover:bg-gray-100",
+        )}
+      >
+        <span
+          className="rounded px-1 text-[11px] font-semibold text-brand-charcoal"
+          style={{ backgroundColor: current ?? "#fef08a" }}
+        >
+          H
+        </span>
+        <ChevronDown />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full z-30 mt-1 w-40 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+          <div className="text-[11px] font-semibold text-brand-muted uppercase mb-1.5 px-1">
+            Highlight
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {HIGHLIGHT_COLORS.map((h) => (
+              <button
+                key={h.label}
+                type="button"
+                onClick={() => pick(h.value)}
+                title={h.label}
+                className={clsx(
+                  "h-6 w-6 rounded-md border border-gray-300 transition-transform hover:scale-110",
+                  current === h.value && "ring-2 ring-brand-green ring-offset-1",
+                )}
+                style={{ backgroundColor: h.hex }}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => pick(null)}
+            className="mt-2 w-full text-center text-[11px] font-medium text-brand-muted hover:text-brand-charcoal py-1 rounded bg-gray-50 hover:bg-gray-100"
+          >
+            Clear highlight
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlignDropdown({
+  currentAlign,
+  isOpen,
+  onToggle,
+  onSelect,
+}: {
+  currentAlign: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onSelect: (alignment: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        title={`Alignment: ${currentAlign}`}
+        className={clsx(
+          "flex h-8 items-center gap-1 rounded px-2 text-xs font-medium text-brand-charcoal transition-colors",
+          isOpen ? "bg-gray-200" : "hover:bg-gray-100",
+        )}
+      >
+        <AlignIcon align={currentAlign} />
+        <ChevronDown />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full z-30 mt-1 w-32 overflow-hidden rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          {[
+            { label: "Left", value: "left" },
+            { label: "Center", value: "center" },
+            { label: "Right", value: "right" },
+            { label: "Justify", value: "justify" },
+          ].map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => onSelect(item.value)}
+              className={clsx(
+                "flex w-full items-center justify-between px-3 py-1.5 text-xs transition-colors",
+                currentAlign === item.value
+                  ? "bg-brand-green/10 text-brand-green-dark font-semibold"
+                  : "text-brand-charcoal hover:bg-gray-50",
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <AlignIcon align={item.value} />
+                {item.label}
+              </span>
+              {currentAlign === item.value && <span>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Primitive UI Helpers ───────────────────────────────────────────────────
 
 function DropdownTrigger({
   open,
@@ -496,10 +949,9 @@ function DropdownTrigger({
   return (
     <button
       type="button"
-      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={clsx(
-        "flex h-8 items-center justify-between gap-1.5 rounded px-2 text-sm font-medium text-brand-charcoal transition-colors",
+        "flex h-8 items-center justify-between gap-1.5 rounded px-2 text-xs font-medium text-brand-charcoal transition-colors",
         widthClass,
         open ? "bg-gray-200" : "hover:bg-gray-100",
       )}
@@ -512,7 +964,7 @@ function DropdownTrigger({
 
 function DropdownMenu({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute left-0 top-full z-20 mt-1 min-w-[12rem] overflow-hidden rounded-md border border-gray-100 bg-white py-1 shadow-lg">
+    <div className="absolute left-0 top-full z-30 mt-1 min-w-[12rem] overflow-hidden rounded-md border border-gray-200 bg-white py-1 shadow-lg">
       {children}
     </div>
   );
@@ -534,7 +986,6 @@ function DropItem({
   return (
     <button
       type="button"
-      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={clsx(
         "flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors",
@@ -562,31 +1013,32 @@ interface BtnProps {
   children: React.ReactNode;
 }
 
-  function Btn({ active, disabled, onClick, label, children }: BtnProps) {
-    return (
-      <button
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onClick}
-        disabled={disabled}
-        title={label}
-        aria-label={label}
-        aria-pressed={active}
-        className={clsx(
-          "inline-flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-brand-charcoal transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-          active
-            ? "bg-brand-green/15 text-brand-green-dark"
-            : "hover:bg-gray-100",
-        )}
-      >
-        {children}
-      </button>
-    );
-  }
+function Btn({ active, disabled, onClick, label, children }: BtnProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={clsx(
+        "inline-flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-brand-charcoal transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+        active
+          ? "bg-brand-green/15 text-brand-green-dark font-semibold"
+          : "hover:bg-gray-100",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 function Sep() {
-  return <span className="mx-1 h-5 w-px bg-gray-300" />;
+  return <span className="mx-0.5 h-4 w-px bg-gray-300" />;
 }
+
+// ─── Icons ──────────────────────────────────────────────────────────────────
 
 function ChevronDown() {
   return (
@@ -669,6 +1121,97 @@ function ImageIcon() {
       <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
       <circle cx="5" cy="5.5" r="1" fill="currentColor" />
       <path d="M2 10l3-3 2.5 2.5L10 6l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AlignIcon({ align }: { align: string }) {
+  if (align === "center") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <line x1="2" y1="3" x2="12" y2="3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="4" y1="6.5" x2="10" y2="6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="2" y1="10" x2="12" y2="10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (align === "right") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <line x1="2" y1="3" x2="12" y2="3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="5" y1="6.5" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="3" y1="10" x2="12" y2="10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (align === "justify") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <line x1="2" y1="3" x2="12" y2="3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="2" y1="6.5" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="2" y1="10" x2="12" y2="10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  // Left default
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <line x1="2" y1="3" x2="12" y2="3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="2" y1="6.5" x2="9" y2="6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="2" y1="10" x2="11" y2="10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function EraserIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M10.5 4.5l-6 6a1.5 1.5 0 01-2.12-2.12l6-6a1.5 1.5 0 012.12 2.12z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <line x1="1.5" y1="12.5" x2="12.5" y2="12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M3 5h5a3.5 3.5 0 013.5 3.5v0a3.5 3.5 0 01-3.5 3.5H4"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M5 2.5L2.5 5 5 7.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M11 5H6a3.5 3.5 0 00-3.5 3.5v0A3.5 3.5 0 006 12h4"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9 2.5l2.5 2.5L9 7.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

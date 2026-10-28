@@ -4,7 +4,8 @@ import clsx from "clsx";
 import { useAuth } from "@/auth/AuthContext";
 import { useChangePassword } from "@/api/profile";
 import { ApiError } from "@/lib/api";
-import Field, { inputClass } from "@/components/studio/Field";
+import Field from "@/components/studio/Field";
+import PasswordInput from "@/components/studio/PasswordInput";
 import { useToast } from "@/ui/Toast";
 
 export default function Profile() {
@@ -123,12 +124,11 @@ export default function Profile() {
               required
               error={errors.currentPassword}
             >
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className={inputClass}
+                error={Boolean(errors.currentPassword)}
               />
             </Field>
 
@@ -138,12 +138,11 @@ export default function Profile() {
               hint="At least 6 characters."
               error={errors.newPassword}
             >
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className={inputClass}
+                error={Boolean(errors.newPassword)}
               />
             </Field>
 
@@ -152,12 +151,11 @@ export default function Profile() {
               required
               error={errors.confirmPassword}
             >
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className={inputClass}
+                error={Boolean(errors.confirmPassword)}
               />
             </Field>
 

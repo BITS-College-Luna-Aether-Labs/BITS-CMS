@@ -11,6 +11,7 @@ const Login = lazy(() => import("@/pages/studio/Login"));
 const PostsList = lazy(() => import("@/pages/studio/PostsList"));
 const PostEditor = lazy(() => import("@/pages/studio/PostEditor"));
 const Admins = lazy(() => import("@/pages/studio/Admins"));
+const AuditLogs = lazy(() => import("@/pages/studio/AuditLogs"));
 const Profile = lazy(() => import("@/pages/studio/Profile"));
 
 function StudioFallback() {
@@ -50,6 +51,14 @@ export default function App() {
               element={
                 <RequireAuth role="superadmin">
                   <Admins />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="audit-logs"
+              element={
+                <RequireAuth role="superadmin">
+                  <AuditLogs />
                 </RequireAuth>
               }
             />

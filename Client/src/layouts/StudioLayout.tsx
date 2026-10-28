@@ -23,7 +23,10 @@ export default function StudioLayout() {
     <>
       <SidebarLink to="/studio/posts" label="Posts" />
       {user?.role === "superadmin" && (
-        <SidebarLink to="/studio/admins" label="Admins" />
+        <>
+          <SidebarLink to="/studio/admins" label="Admins" />
+          <SidebarLink to="/studio/audit-logs" label="Audit Log" />
+        </>
       )}
       <SidebarLink to="/studio/profile" label="Profile" />
     </>

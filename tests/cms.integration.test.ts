@@ -29,7 +29,7 @@ test("1. database integration: schema and core constraints are applied", async (
 
   assert.deepEqual(
     tables.map((row) => row.tablename),
-    ["admin", "media", "post", "readmore", "readmore_media", "refresh_token"],
+    ["admin", "audit_log", "media", "post", "readmore", "readmore_media", "refresh_token"],
   );
 
   const postIndexes = await harness.query<{ indexname: string }>(

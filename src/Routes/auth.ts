@@ -27,6 +27,7 @@ import {
   storeRefreshToken,
   touchRefreshToken,
 } from "../DB/admin.js";
+import { createAuditLog } from "../DB/audit.js";
 import { authenticate } from "../Middleware/auth.js";
 import { validateBody } from "../Middleware/validate.js";
 import { parseLoginBody } from "../Schemas/auth.js";
@@ -113,6 +114,16 @@ router.post(
 
     setRefreshCookie(res, refreshToken);
 
+    void createAuditLog({
+      adminId: admin.adminId,
+      adminEmail: admin.email,
+      action: "AUTH_LOGIN",
+      entityType: "AUTH",
+      entityId: String(admin.adminId),
+      details: { role: admin.role, userAgent: req.get("user-agent") },
+      ipAddress: req.ip,
+    }).catch(console.error);
+
     res.json({
       data: {
         accessToken,
@@ -197,6 +208,15 @@ router.post(
 
     if (refreshToken) {
       try {
+        const payload = verifyRefreshToken(refreshToken);
+        void createAuditLog({
+          adminId: typeof payload.sub === "number" ? payload.sub : Number(payload.sub),
+          adminEmail: payload.email,
+          action: "AUTH_LOGOUT",
+          entityType: "AUTH",
+          entityId: String(payload.sub),
+          ipAddress: req.ip,
+        }).catch(console.error);
         await revokeRefreshToken(hashToken(refreshToken));
       } catch {
         // Silently continue if token is already revoked or malformed

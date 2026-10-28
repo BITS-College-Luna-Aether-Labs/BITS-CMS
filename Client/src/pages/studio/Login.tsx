@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { ApiError } from "@/lib/api";
+import PasswordInput from "@/components/studio/PasswordInput";
 
 export default function Login() {
   const { user, login, isLoading } = useAuth();
@@ -84,13 +85,20 @@ export default function Login() {
               value={email}
               onChange={setEmail}
             />
-            <Field
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={setPassword}
-            />
+            <label className="block">
+              <span className="block text-sm font-medium text-brand-charcoal">
+                Password
+              </span>
+              <div className="mt-1">
+                <PasswordInput
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+            </label>
           </div>
 
           <button

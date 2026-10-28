@@ -91,4 +91,20 @@ CREATE INDEX IF NOT EXISTS idx_readmore_media_readmoreid ON readmore_media(readm
 CREATE INDEX IF NOT EXISTS idx_refresh_token_adminid ON refresh_token(adminid);
 CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_token(tokenhash);
 
+CREATE TABLE IF NOT EXISTS audit_log (
+    auditid SERIAL PRIMARY KEY,
+    adminid INT REFERENCES admin(adminid) ON DELETE SET NULL,
+    adminemail VARCHAR(255) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    entitytype VARCHAR(50) NOT NULL,
+    entityid VARCHAR(100),
+    details JSONB,
+    ipaddress VARCHAR(45),
+    createdat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_createdat ON audit_log(createdat DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_adminid ON audit_log(adminid);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+
 COMMIT;

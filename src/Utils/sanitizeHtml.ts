@@ -12,11 +12,17 @@ const ALLOWED_TAGS = [
   "em",
   "i",
   "u",
+  "s",
+  "del",
+  "code",
+  "pre",
   "small",
   "mark",
   "span",
+  "h1",
   "h2",
   "h3",
+  "h4",
   "ul",
   "ol",
   "li",
@@ -33,6 +39,8 @@ const ALLOWED_ATTR = [
   "src",
   "alt",
   "title",
+  "style",
+  "class",
 ];
 
 export function sanitizeHtml(html: string): string {

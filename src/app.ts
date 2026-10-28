@@ -4,6 +4,7 @@ import postRoutes from "./Routes/posts.js";
 import mediaRoutes from "./Routes/media.js";
 import adminRoutes from "./Routes/admins.js";
 import adminPostRoutes from "./Routes/admin-posts.js";
+import auditRoutes from "./Routes/audit.js";
 import errorHandler from "./Middleware/errorHandler.js";
 import { createRateLimiter } from "./Middleware/rateLimit.js";
 import { env } from "./Utils/env.js";
@@ -72,6 +73,9 @@ app.use("/api/admin/posts", adminPostRoutes);
 
 //Admin Routes (account management only)
 app.use("/api/admin", adminRoutes);
+
+//Audit Log Routes (superadmin only)
+app.use("/api/admin/audit-logs", auditRoutes);
 
 app.use(errorHandler);
 

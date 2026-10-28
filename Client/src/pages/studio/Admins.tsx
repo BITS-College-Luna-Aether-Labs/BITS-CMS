@@ -11,6 +11,7 @@ import type { AdminAccount, Role } from "@/api/types";
 import { ApiError } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import Field, { inputClass } from "@/components/studio/Field";
+import PasswordInput from "@/components/studio/PasswordInput";
 import { Skeleton } from "@/components/Skeleton";
 import { useConfirm } from "@/ui/ConfirmDialog";
 import { useToast } from "@/ui/Toast";
@@ -292,11 +293,11 @@ function CreateAdminModal({ onClose }: { onClose: () => void }) {
               hint="At least 6 characters."
               error={errors.password}
             >
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={inputClass}
+                error={Boolean(errors.password)}
+                placeholder="At least 6 characters"
               />
             </Field>
 
@@ -412,13 +413,13 @@ function ResetPasswordModal({
               hint="At least 6 characters."
               error={errors.newPassword}
             >
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="new-password"
                 autoFocus
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className={inputClass}
+                error={Boolean(errors.newPassword)}
+                placeholder="New password"
               />
             </Field>
 

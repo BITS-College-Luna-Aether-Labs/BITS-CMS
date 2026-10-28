@@ -13,6 +13,7 @@ import {
   revokeRefreshTokensForAdmin,
   updateAdminPassword,
 } from "../DB/admin.js";
+import { createAuditLog } from "../DB/audit.js";
 import { authenticate, requireRole } from "../Middleware/auth.js";
 import { validateBody } from "../Middleware/validate.js";
 import {
@@ -52,6 +53,16 @@ router.post(
       passwordHashed,
       role: "admin",
     });
+
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "ADMIN_CREATE",
+      entityType: "ADMIN",
+      entityId: String(admin.adminId),
+      details: { targetEmail: admin.email, role: admin.role },
+      ipAddress: req.ip,
+    }).catch(console.error);
 
     res.status(201).json({
       data: admin,
@@ -98,6 +109,16 @@ router.patch(
     await updateAdminPassword(adminId, passwordHashed);
     await revokeRefreshTokensForAdmin(adminId);
 
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "ADMIN_RESET_PASSWORD",
+      entityType: "ADMIN",
+      entityId: String(adminId),
+      details: { targetEmail: target.email },
+      ipAddress: req.ip,
+    }).catch(console.error);
+
     res.json({
       data: { adminId },
       message: "OK",
@@ -116,6 +137,11 @@ router.patch(
       throw badRequest("You cannot deactivate your own account");
     }
 
+    const target = await findAdminById(adminId);
+    if (!target) {
+      throw notFound("Admin not found");
+    }
+
     const deactivated = await deactivateAdmin(adminId);
 
     if (!deactivated) {
@@ -123,6 +149,16 @@ router.patch(
     }
 
     await revokeRefreshTokensForAdmin(adminId);
+
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "ADMIN_DEACTIVATE",
+      entityType: "ADMIN",
+      entityId: String(adminId),
+      details: { targetEmail: target.email },
+      ipAddress: req.ip,
+    }).catch(console.error);
 
     res.json({
       data: { adminId, isActive: false },
@@ -149,12 +185,21 @@ router.patch(
     );
 
     if (!isCurrentPasswordValid) {
-      throw unauthorized("Current password is incorrect");
+      throw badRequest("Current password is incorrect");
     }
 
     const passwordHashed = await bcrypt.hash(body.newPassword, SALT_ROUNDS);
     await updateAdminPassword(admin.adminId, passwordHashed);
     await revokeRefreshTokensForAdmin(admin.adminId);
+
+    void createAuditLog({
+      adminId: admin.adminId,
+      adminEmail: admin.email,
+      action: "ADMIN_CHANGE_PASSWORD",
+      entityType: "ADMIN",
+      entityId: String(admin.adminId),
+      ipAddress: req.ip,
+    }).catch(console.error);
 
     res.json({
       data: { adminId: admin.adminId },

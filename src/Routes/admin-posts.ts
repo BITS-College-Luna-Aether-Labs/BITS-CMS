@@ -10,6 +10,7 @@ import {
   updatePost,
   type DeletedFilter,
 } from "../DB/post.js";
+import { createAuditLog } from "../DB/audit.js";
 import { authenticate } from "../Middleware/auth.js";
 import { validateBody } from "../Middleware/validate.js";
 import { parsePostBody } from "../Schemas/post.js";
@@ -99,6 +100,16 @@ router.post(
       adminId: req.user!.sub,
     });
 
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "POST_CREATE",
+      entityType: "POST",
+      entityId: String(post.postId),
+      details: { title: post.title, slug: post.slug, mediaType: post.media.type },
+      ipAddress: req.ip,
+    }).catch(console.error);
+
     res.status(201).json({
       data: post,
       message: "OK",
@@ -117,6 +128,16 @@ router.put(
     if (!updated) {
       throw notFound("Post not found");
     }
+
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "POST_UPDATE",
+      entityType: "POST",
+      entityId: String(updated.postId),
+      details: { title: updated.title, slug: updated.slug },
+      ipAddress: req.ip,
+    }).catch(console.error);
 
     res.json({
       data: updated,
@@ -154,6 +175,16 @@ router.delete(
       throw notFound("Post not found");
     }
 
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "POST_DELETE",
+      entityType: "POST",
+      entityId: String(postId),
+      details: { mode: "soft_delete" },
+      ipAddress: req.ip,
+    }).catch(console.error);
+
     res.status(204).send();
   }),
 );
@@ -168,6 +199,15 @@ router.post(
     if (!restored) {
       throw notFound("Post not found or not deleted");
     }
+
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "POST_RESTORE",
+      entityType: "POST",
+      entityId: String(postId),
+      ipAddress: req.ip,
+    }).catch(console.error);
 
     const post = await getPostById(postId, true);
     res.json({ data: post, message: "OK" });
@@ -186,6 +226,16 @@ router.delete(
         "Post not found or not soft-deleted. Soft-delete it first.",
       );
     }
+
+    void createAuditLog({
+      adminId: req.user!.sub,
+      adminEmail: req.user!.email,
+      action: "POST_PURGE",
+      entityType: "POST",
+      entityId: String(postId),
+      details: { mediaRemoved: result.mediaRemoved },
+      ipAddress: req.ip,
+    }).catch(console.error);
 
     res.json({
       data: { postId, mediaRemoved: result.mediaRemoved },
